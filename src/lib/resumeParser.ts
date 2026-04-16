@@ -1,61 +1,44 @@
-// Simple text extraction from uploaded files (supports .txt and basic text from files)
-// For production, you'd use a PDF parsing library or edge function
+import * as pdfjsLib from 'pdfjs-dist';
+
+// Set the worker source
+pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.worker.min.mjs`;
 
 export async function extractTextFromFile(file: File): Promise<string> {
-  // For text files, read directly
   if (file.type === 'text/plain' || file.name.endsWith('.txt')) {
     return await file.text();
   }
 
-  // For PDF files, extract text client-side (basic approach)
   if (file.type === 'application/pdf' || file.name.endsWith('.pdf')) {
     return await extractFromPdf(file);
   }
 
-  // For other files, try to read as text
   return await file.text();
 }
 
 async function extractFromPdf(file: File): Promise<string> {
-  // Simple PDF text extraction by reading raw bytes and finding text streams
-  const buffer = await file.arrayBuffer();
-  const bytes = new Uint8Array(buffer);
-  let text = '';
+  try {
+    const buffer = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
+    const textParts: string[] = [];
 
-  // Decode as Latin-1 to preserve byte values
-  const raw = Array.from(bytes).map(b => String.fromCharCode(b)).join('');
-
-  // Extract text between BT and ET markers (PDF text objects)
-  const btEtRegex = /BT\s([\s\S]*?)ET/g;
-  let match;
-  while ((match = btEtRegex.exec(raw)) !== null) {
-    const block = match[1];
-    // Extract text from Tj and TJ operators
-    const tjRegex = /\(([^)]*)\)\s*Tj/g;
-    let tjMatch;
-    while ((tjMatch = tjRegex.exec(block)) !== null) {
-      text += tjMatch[1] + ' ';
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i);
+      const content = await page.getTextContent();
+      const pageText = content.items
+        .map((item: any) => item.str)
+        .join(' ');
+      textParts.push(pageText);
     }
-    // TJ arrays
-    const tjArrayRegex = /\[([^\]]*)\]\s*TJ/g;
-    let tjArrMatch;
-    while ((tjArrMatch = tjArrayRegex.exec(block)) !== null) {
-      const inner = tjArrMatch[1];
-      const strRegex = /\(([^)]*)\)/g;
-      let strMatch;
-      while ((strMatch = strRegex.exec(inner)) !== null) {
-        text += strMatch[1];
-      }
-      text += ' ';
-    }
-  }
 
-  // If no text was extracted, return a note
-  if (!text.trim()) {
+    const text = textParts.join('\n').trim();
+    if (!text || text.length < 20) {
+      return 'Unable to extract text from PDF. This may be a scanned/image PDF. Please upload a text-based resume (.txt) for best results.';
+    }
+    return text;
+  } catch (err) {
+    console.error('PDF extraction error:', err);
     return 'Unable to extract text from PDF. Please upload a text-based resume (.txt) for best results.';
   }
-
-  return text.trim();
 }
 
 // Sample resume texts for demo purposes

@@ -76,7 +76,11 @@ export default function DashboardPage() {
 
   const avgAts = filtered.length ? Math.round(filtered.reduce((s, r) => s + (r.ats_score ?? 0), 0) / filtered.length) : 0;
   const shortlistedCount = filtered.filter(r => r.shortlisted).length;
-  const topCandidate = filtered.length ? [...filtered].sort((a, b) => (b.ats_score ?? 0) - (a.ats_score ?? 0))[0] : null;
+  // Top candidate: best ATS score among non-Poor candidates; fallback to none if all are Poor
+  const eligible = filtered.filter(r => r.status !== 'Poor' && (r.ats_score ?? 0) >= 50);
+  const topCandidate = eligible.length
+    ? [...eligible].sort((a, b) => (b.ats_score ?? 0) - (a.ats_score ?? 0))[0]
+    : null;
   const previewResume = resumes.find(r => r.id === previewId) || null;
   const previewJob = previewResume ? jobs.find(j => j.id === previewResume.job_id) : null;
 
@@ -149,22 +153,43 @@ export default function DashboardPage() {
           </div>
 
           {/* Filters */}
-          <div className="glass-card rounded-2xl p-4 mb-6 grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
-            <div>
-              <Label className="text-xs">Search candidate</Label>
-              <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Name..." className="rounded-xl mt-1" />
+          <div className="glass-card rounded-2xl p-4 mb-6">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-xs text-muted-foreground">🔎 Filters apply automatically as you type</p>
+              {(search || skillFilter || minScore > 0 || shortlistedOnly) && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => { setSearch(''); setSkillFilter(''); setMinScore(0); setShortlistedOnly(false); }}
+                  className="rounded-lg text-xs h-7"
+                >
+                  ✕ Clear filters
+                </Button>
+              )}
             </div>
-            <div>
-              <Label className="text-xs">Filter by skill</Label>
-              <Input value={skillFilter} onChange={e => setSkillFilter(e.target.value)} placeholder="e.g. java" className="rounded-xl mt-1" />
-            </div>
-            <div>
-              <Label className="text-xs">Min ATS score: {minScore}%</Label>
-              <input type="range" min={0} max={100} value={minScore} onChange={e => setMinScore(+e.target.value)} className="w-full mt-3 accent-primary" />
-            </div>
-            <div className="flex items-center gap-2 pb-2">
-              <Switch checked={shortlistedOnly} onCheckedChange={setShortlistedOnly} id="short" />
-              <Label htmlFor="short">Shortlisted only</Label>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
+              <div>
+                <Label className="text-xs">Search candidate</Label>
+                <div className="relative mt-1">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">🔍</span>
+                  <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Name..." className="rounded-xl pl-9" />
+                </div>
+              </div>
+              <div>
+                <Label className="text-xs">Filter by skill</Label>
+                <div className="relative mt-1">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">🛠️</span>
+                  <Input value={skillFilter} onChange={e => setSkillFilter(e.target.value)} placeholder="e.g. java, react" className="rounded-xl pl-9" />
+                </div>
+              </div>
+              <div>
+                <Label className="text-xs">Min ATS score: {minScore}%</Label>
+                <input type="range" min={0} max={100} value={minScore} onChange={e => setMinScore(+e.target.value)} className="w-full mt-3 accent-primary" />
+              </div>
+              <div className="flex items-center gap-2 pb-2">
+                <Switch checked={shortlistedOnly} onCheckedChange={setShortlistedOnly} id="short" />
+                <Label htmlFor="short">Shortlisted only</Label>
+              </div>
             </div>
           </div>
 

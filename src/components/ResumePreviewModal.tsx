@@ -29,11 +29,24 @@ interface Props {
   onUpdated: (r: Resume) => void;
 }
 
+interface JobSuggestion {
+  title: string;
+  level: string;
+  match_percent: number;
+  matching_skills: string[];
+  why: string;
+}
+
 export default function ResumePreviewModal({ resume, jobDescription, onClose, onUpdated }: Props) {
   const [loading, setLoading] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
+  const [suggesting, setSuggesting] = useState(false);
+  const [suggestions, setSuggestions] = useState<JobSuggestion[]>([]);
 
-  useEffect(() => { setFeedback(resume?.ai_feedback ?? null); }, [resume]);
+  useEffect(() => {
+    setFeedback(resume?.ai_feedback ?? null);
+    setSuggestions([]);
+  }, [resume]);
 
   if (!resume) return null;
 
@@ -61,6 +74,25 @@ export default function ResumePreviewModal({ resume, jobDescription, onClose, on
     toast.success('AI feedback generated');
   };
 
+  const generateSuggestions = async () => {
+    setSuggesting(true);
+    const { data, error } = await supabase.functions.invoke('job-suggestions', {
+      body: {
+        candidateName: resume.name,
+        skills: resume.skills,
+        experience: resume.experience,
+        education: resume.education,
+      },
+    });
+    setSuggesting(false);
+    if (error || !data?.suggestions) {
+      toast.error(data?.error || error?.message || 'Failed to fetch job suggestions');
+      return;
+    }
+    setSuggestions(data.suggestions);
+    toast.success(`Found ${data.suggestions.length} matching roles`);
+  };
+
   const Chips = ({ items, variant = 'default' }: { items?: string | null; variant?: 'default' | 'destructive' }) => (
     <div className="flex flex-wrap gap-1.5">
       {(items || '').split(',').map(s => s.trim()).filter(Boolean).map((s, i) => (
@@ -68,6 +100,15 @@ export default function ResumePreviewModal({ resume, jobDescription, onClose, on
       )) || <span className="text-muted-foreground text-sm">—</span>}
     </div>
   );
+
+  const levelColor = (level: string) => {
+    const l = level.toLowerCase();
+    if (l === 'intern' || l === 'junior') return 'bg-blue-500/10 text-blue-600 border-blue-500/20';
+    if (l === 'mid') return 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20';
+    if (l === 'senior') return 'bg-purple-500/10 text-purple-600 border-purple-500/20';
+    if (l === 'freelance') return 'bg-amber-500/10 text-amber-600 border-amber-500/20';
+    return 'bg-muted text-muted-foreground';
+  };
 
   return (
     <Dialog open={!!resume} onOpenChange={onClose}>
@@ -109,6 +150,7 @@ export default function ResumePreviewModal({ resume, jobDescription, onClose, on
             <Chips items={resume.education} />
           </div>
 
+          {/* AI Feedback */}
           <div>
             <div className="flex items-center justify-between mb-2">
               <h4 className="font-heading font-semibold">AI Recruiter Feedback</h4>
@@ -120,6 +162,42 @@ export default function ResumePreviewModal({ resume, jobDescription, onClose, on
               <div className="bg-muted/40 rounded-xl p-4 text-sm whitespace-pre-wrap">{feedback}</div>
             ) : (
               <p className="text-sm text-muted-foreground">No feedback yet. Click Generate to get AI suggestions.</p>
+            )}
+          </div>
+
+          {/* Job Suggestions */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <h4 className="font-heading font-semibold">🎯 AI Job Suggestions</h4>
+              <Button size="sm" onClick={generateSuggestions} disabled={suggesting} className="rounded-xl gradient-primary text-primary-foreground border-0">
+                {suggesting ? 'Finding roles...' : suggestions.length ? 'Refresh' : 'Suggest Jobs'}
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground mb-3">
+              Skills-first matching — formal education is NOT required. Great for students and self-taught candidates.
+            </p>
+            {suggesting ? <LoadingSpinner text="Finding best-fit roles..." /> : suggestions.length > 0 ? (
+              <div className="space-y-3">
+                {suggestions.map((s, i) => (
+                  <div key={i} className="glass-card rounded-xl p-4 border border-border/50">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-lg font-semibold">{s.title}</span>
+                        <Badge variant="outline" className={levelColor(s.level)}>{s.level}</Badge>
+                      </div>
+                      <span className="text-primary font-bold text-lg">{s.match_percent}%</span>
+                    </div>
+                    <p className="text-sm text-muted-foreground mb-2">{s.why}</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {(s.matching_skills || []).map((sk, j) => (
+                        <Badge key={j} variant="secondary" className="text-xs">{sk}</Badge>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">Click "Suggest Jobs" to get AI-powered role recommendations based on this candidate's skills.</p>
             )}
           </div>
 

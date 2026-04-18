@@ -1,23 +1,21 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserRole } from '@/hooks/useUserRole';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import LoadingSpinner from '@/components/LoadingSpinner';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Briefcase, Pencil, Trash2 } from 'lucide-react';
 
 interface Job { id: string; job_name: string; description: string; created_at: string; }
 
 export default function JobsPage() {
-  const { user, signOut } = useAuth();
-  const { role, isAdmin } = useUserRole();
-  const navigate = useNavigate();
+  const { user } = useAuth();
+  const { isAdmin } = useUserRole();
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<Job | null>(null);

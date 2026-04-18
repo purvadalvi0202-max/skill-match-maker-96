@@ -189,8 +189,7 @@ export default function DashboardPage() {
             onView={setPreviewId}
             onShortlistToggle={toggleShortlist}
           />
-        </motion.div>
-      </div>
+      </motion.div>
 
       <ResumePreviewModal
         resume={previewResume}

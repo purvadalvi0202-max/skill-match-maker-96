@@ -5,6 +5,8 @@ import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import LoadingSpinner from './LoadingSpinner';
+import CircularScore from './CircularScore';
+import { ChipList } from './SkillChip';
 
 interface Resume {
   id: string;
@@ -93,14 +95,6 @@ export default function ResumePreviewModal({ resume, jobDescription, onClose, on
     toast.success(`Found ${data.suggestions.length} matching roles`);
   };
 
-  const Chips = ({ items, variant = 'default' }: { items?: string | null; variant?: 'default' | 'destructive' }) => (
-    <div className="flex flex-wrap gap-1.5">
-      {(items || '').split(',').map(s => s.trim()).filter(Boolean).map((s, i) => (
-        <Badge key={i} variant={variant === 'destructive' ? 'destructive' : 'secondary'}>{s}</Badge>
-      )) || <span className="text-muted-foreground text-sm">—</span>}
-    </div>
-  );
-
   const levelColor = (level: string) => {
     const l = level.toLowerCase();
     if (l === 'intern' || l === 'junior') return 'bg-blue-500/10 text-blue-600 border-blue-500/20';
@@ -118,36 +112,35 @@ export default function ResumePreviewModal({ resume, jobDescription, onClose, on
         </DialogHeader>
 
         <div className="grid grid-cols-3 gap-3 py-2">
-          <div className="glass-card rounded-xl p-3 text-center">
-            <p className="text-xs text-muted-foreground">ATS Score</p>
-            <p className="text-2xl font-bold text-primary">{resume.ats_score ?? resume.score ?? 0}%</p>
+          <div className="glass-card rounded-xl p-4 flex items-center justify-center">
+            <CircularScore value={resume.ats_score ?? resume.score ?? 0} size={72} stroke={7} label="ATS" />
           </div>
-          <div className="glass-card rounded-xl p-3 text-center">
+          <div className="glass-card rounded-xl p-4 text-center flex flex-col justify-center">
             <p className="text-xs text-muted-foreground">Status</p>
-            <p className="text-lg font-semibold">{resume.status || '—'}</p>
+            <p className="text-lg font-semibold mt-1">{resume.status || '—'}</p>
           </div>
-          <div className="glass-card rounded-xl p-3 text-center">
-            <p className="text-xs text-muted-foreground">ML</p>
-            <p className="text-lg font-semibold">{resume.ml_prediction || '—'}</p>
+          <div className="glass-card rounded-xl p-4 text-center flex flex-col justify-center">
+            <p className="text-xs text-muted-foreground">ML Prediction</p>
+            <p className="text-lg font-semibold mt-1">{resume.ml_prediction || '—'}</p>
           </div>
         </div>
 
         <div className="space-y-4">
           <div>
             <h4 className="font-heading font-semibold mb-2">Skills</h4>
-            <Chips items={resume.skills} />
+            <ChipList items={resume.skills} />
           </div>
           <div>
             <h4 className="font-heading font-semibold mb-2">Missing Skills</h4>
-            {resume.missing_skills ? <Chips items={resume.missing_skills} variant="destructive" /> : <p className="text-sm text-muted-foreground">None — all required skills present.</p>}
+            {resume.missing_skills ? <ChipList items={resume.missing_skills} variant="destructive" /> : <p className="text-sm text-muted-foreground">None — all required skills present.</p>}
           </div>
           <div>
             <h4 className="font-heading font-semibold mb-2">Experience</h4>
-            <Chips items={resume.experience} />
+            <ChipList items={resume.experience} />
           </div>
           <div>
             <h4 className="font-heading font-semibold mb-2">Education</h4>
-            <Chips items={resume.education} />
+            <ChipList items={resume.education} />
           </div>
 
           {/* AI Feedback */}

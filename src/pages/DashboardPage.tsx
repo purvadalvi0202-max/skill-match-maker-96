@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import StatCard from '@/components/StatCard';
@@ -12,8 +13,9 @@ import ResumeTable from '@/components/ResumeTable';
 import { ScoreBarChart, StatusDoughnut } from '@/components/ScoreChart';
 import DashboardSkeleton from '@/components/DashboardSkeleton';
 import ResumePreviewModal from '@/components/ResumePreviewModal';
+import MiniChatbot from '@/components/MiniChatbot';
 import { exportToCsv } from '@/lib/exportCsv';
-import { Download, Search, Wrench, X } from 'lucide-react';
+import { Download, TriangleAlert as AlertTriangle, Trophy, Users, ChartBar as BarChart3 } from 'lucide-react';
 
 interface Resume {
   id: string;
@@ -21,6 +23,8 @@ interface Resume {
   skills: string | null;
   experience: string | null;
   education: string | null;
+  projects: string | null;
+  certifications: string | null;
   score: number | null;
   ats_score: number | null;
   status: string | null;
@@ -30,6 +34,8 @@ interface Resume {
   raw_text: string | null;
   shortlisted: boolean;
   job_id: string;
+  validation_status: string | null;
+  preference_boost: number | null;
 }
 
 interface Job { id: string; job_name: string; description: string; }
@@ -43,6 +49,7 @@ export default function DashboardPage() {
   const [skillFilter, setSkillFilter] = useState('');
   const [minScore, setMinScore] = useState(0);
   const [shortlistedOnly, setShortlistedOnly] = useState(false);
+  const [showSuspicious, setShowSuspicious] = useState(false);
   const [previewId, setPreviewId] = useState<string | null>(null);
 
   useEffect(() => { fetchData(); }, []);
@@ -64,14 +71,15 @@ export default function DashboardPage() {
       if (skillFilter && !(r.skills || '').toLowerCase().includes(skillFilter.toLowerCase())) return false;
       if ((r.ats_score ?? 0) < minScore) return false;
       if (shortlistedOnly && !r.shortlisted) return false;
+      if (showSuspicious && r.validation_status !== 'suspicious') return false;
       return true;
     });
-  }, [resumes, selectedJob, search, skillFilter, minScore, shortlistedOnly]);
+  }, [resumes, selectedJob, search, skillFilter, minScore, shortlistedOnly, showSuspicious]);
 
   const avgAts = filtered.length ? Math.round(filtered.reduce((s, r) => s + (r.ats_score ?? 0), 0) / filtered.length) : 0;
   const shortlistedCount = filtered.filter(r => r.shortlisted).length;
-  // Top candidate: best ATS score among non-Poor candidates; fallback to none if all are Poor
-  const eligible = filtered.filter(r => r.status !== 'Poor' && (r.ats_score ?? 0) >= 50);
+  const suspiciousCount = resumes.filter(r => r.validation_status === 'suspicious').length;
+  const eligible = filtered.filter(r => r.status !== 'Poor' && (r.ats_score ?? 0) >= 40);
   const topCandidate = eligible.length
     ? [...eligible].sort((a, b) => (b.ats_score ?? 0) - (a.ats_score ?? 0))[0]
     : null;
@@ -95,9 +103,12 @@ export default function DashboardPage() {
       ml_prediction: r.ml_prediction,
       shortlisted: r.shortlisted ? 'Yes' : 'No',
       skills: r.skills,
+      projects: r.projects,
+      certifications: r.certifications,
       missing_skills: r.missing_skills,
       experience: r.experience,
       education: r.education,
+      validation_status: r.validation_status,
     })));
     toast.success('Exported CSV');
   };
@@ -112,7 +123,7 @@ export default function DashboardPage() {
             <h2 className="text-3xl font-heading font-bold">Dashboard</h2>
             <p className="text-sm text-muted-foreground mt-1">Overview of your candidate pipeline</p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
             <Button variant="outline" onClick={handleExport} className="rounded-xl gap-2">
               <Download className="h-4 w-4" /> Export CSV
             </Button>
@@ -126,69 +137,112 @@ export default function DashboardPage() {
           </div>
         </div>
 
-          {/* Stats */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-            <StatCard title="Total Resumes" value={filtered.length} icon={<span className="text-xl">📄</span>} />
-            <StatCard title="Shortlisted" value={shortlistedCount} icon={<span className="text-xl">⭐</span>} />
-            <StatCard title="Avg ATS Score" value={`${avgAts}%`} icon={<span className="text-xl">📊</span>} />
-            <StatCard title="Top Candidate" value={topCandidate ? topCandidate.name.split(' - ')[0] || topCandidate.name : '—'} icon={<span className="text-xl">🏆</span>} accent />
-          </div>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          <StatCard title="Total Resumes" value={filtered.length} icon={<BarChart3 className="h-6 w-6" />} />
+          <StatCard title="Shortlisted" value={shortlistedCount} icon={<span className="text-xl font-bold">★</span>} />
+          <StatCard title="Avg ATS Score" value={`${avgAts}%`} icon={<span className="text-xl font-bold">%</span>} />
+          <StatCard title="Top Candidate" value={topCandidate ? topCandidate.name.split(' - ')[0] || topCandidate.name : '—'} icon={<Trophy className="h-6 w-6" />} accent />
+        </div>
 
-          {/* Filters */}
-          <div className="glass-card rounded-2xl p-4 mb-6">
-            <div className="flex items-center justify-between mb-3">
-              <p className="text-xs text-muted-foreground">🔎 Filters apply automatically as you type</p>
-              {(search || skillFilter || minScore > 0 || shortlistedOnly) && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => { setSearch(''); setSkillFilter(''); setMinScore(0); setShortlistedOnly(false); }}
-                  className="rounded-lg text-xs h-7"
-                >
-                  ✕ Clear filters
-                </Button>
+        {suspiciousCount > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="glass-card rounded-2xl p-4 mb-6 border-l-4 border-warning bg-warning/5 flex items-center justify-between gap-4"
+          >
+            <div className="flex items-center gap-3">
+              <AlertTriangle className="h-5 w-5 text-warning shrink-0" />
+              <div>
+                <p className="font-semibold text-sm">{suspiciousCount} Suspicious Resume{suspiciousCount > 1 ? 's' : ''} Detected</p>
+                <p className="text-xs text-muted-foreground">These resumes may contain placeholder text or insufficient content.</p>
+              </div>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setShowSuspicious(v => !v)}
+              className="rounded-xl shrink-0 border-warning/50 text-warning hover:bg-warning/10"
+            >
+              {showSuspicious ? 'Show All' : 'View Flagged'}
+            </Button>
+          </motion.div>
+        )}
+
+        <div className="glass-card rounded-2xl p-4 mb-6">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-xs text-muted-foreground">Filters apply automatically as you type</p>
+            {(search || skillFilter || minScore > 0 || shortlistedOnly) && (
+              <Button variant="ghost" size="sm" onClick={() => { setSearch(''); setSkillFilter(''); setMinScore(0); setShortlistedOnly(false); setShowSuspicious(false); }} className="rounded-lg text-xs h-7">
+                Clear filters
+              </Button>
+            )}
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
+            <div>
+              <Label className="text-xs">Search candidate</Label>
+              <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Name..." className="rounded-xl mt-1" />
+            </div>
+            <div>
+              <Label className="text-xs">Filter by skill</Label>
+              <Input value={skillFilter} onChange={e => setSkillFilter(e.target.value)} placeholder="e.g. java, react" className="rounded-xl mt-1" />
+            </div>
+            <div>
+              <Label className="text-xs">Min ATS score: {minScore}%</Label>
+              <input type="range" min={0} max={100} value={minScore} onChange={e => setMinScore(+e.target.value)} className="w-full mt-3 accent-primary" />
+            </div>
+            <div className="flex items-center gap-2 pb-2">
+              <Switch checked={shortlistedOnly} onCheckedChange={setShortlistedOnly} id="short" />
+              <Label htmlFor="short">Shortlisted only</Label>
+            </div>
+          </div>
+        </div>
+
+        {filtered.length > 0 && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+            <ScoreBarChart resumes={filtered.map(r => ({ name: r.name, score: r.ats_score, status: r.status }))} />
+            <StatusDoughnut resumes={filtered.map(r => ({ name: r.name, score: r.ats_score, status: r.status }))} />
+          </div>
+        )}
+
+        {topCandidate && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="glass-card rounded-2xl p-5 mb-6 border border-primary/20 bg-primary/3"
+          >
+            <div className="flex items-center gap-3 mb-3">
+              <div className="h-10 w-10 rounded-xl gradient-primary flex items-center justify-center text-white">
+                <Trophy className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Top Candidate</p>
+                <p className="font-heading font-bold text-lg">{topCandidate.name}</p>
+              </div>
+              <div className="ml-auto flex items-center gap-2">
+                <Badge className="bg-success/10 text-success border-success/30 text-sm font-bold px-3">ATS {topCandidate.ats_score}%</Badge>
+                <Badge variant={topCandidate.ml_prediction === 'Suitable' ? 'default' : 'secondary'}>{topCandidate.ml_prediction}</Badge>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {(topCandidate.skills || '').split(',').map(s => s.trim()).filter(Boolean).slice(0, 6).map((s, i) => (
+                <Badge key={i} variant="secondary" className="text-xs">{s}</Badge>
+              ))}
+              {topCandidate.certifications && (
+                <Badge variant="outline" className="text-xs bg-warning/10 text-warning border-warning/30">Certified</Badge>
+              )}
+              {topCandidate.projects && (
+                <Badge variant="outline" className="text-xs bg-accent/10 text-accent-foreground border-accent/20">Has Projects</Badge>
               )}
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
-              <div>
-                <Label className="text-xs">Search candidate</Label>
-                <div className="relative mt-1">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">🔍</span>
-                  <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Name..." className="rounded-xl pl-9" />
-                </div>
-              </div>
-              <div>
-                <Label className="text-xs">Filter by skill</Label>
-                <div className="relative mt-1">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">🛠️</span>
-                  <Input value={skillFilter} onChange={e => setSkillFilter(e.target.value)} placeholder="e.g. java, react" className="rounded-xl pl-9" />
-                </div>
-              </div>
-              <div>
-                <Label className="text-xs">Min ATS score: {minScore}%</Label>
-                <input type="range" min={0} max={100} value={minScore} onChange={e => setMinScore(+e.target.value)} className="w-full mt-3 accent-primary" />
-              </div>
-              <div className="flex items-center gap-2 pb-2">
-                <Switch checked={shortlistedOnly} onCheckedChange={setShortlistedOnly} id="short" />
-                <Label htmlFor="short">Shortlisted only</Label>
-              </div>
-            </div>
-          </div>
+          </motion.div>
+        )}
 
-          {/* Charts */}
-          {filtered.length > 0 && (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-              <ScoreBarChart resumes={filtered.map(r => ({ name: r.name, score: r.ats_score, status: r.status }))} />
-              <StatusDoughnut resumes={filtered.map(r => ({ name: r.name, score: r.ats_score, status: r.status }))} />
-            </div>
-          )}
-
-          <ResumeTable
-            resumes={filtered}
-            topCandidateId={topCandidate?.id}
-            onView={setPreviewId}
-            onShortlistToggle={toggleShortlist}
-          />
+        <ResumeTable
+          resumes={filtered}
+          topCandidateId={topCandidate?.id}
+          onView={setPreviewId}
+          onShortlistToggle={toggleShortlist}
+        />
       </motion.div>
 
       <ResumePreviewModal
@@ -197,6 +251,8 @@ export default function DashboardPage() {
         onClose={() => setPreviewId(null)}
         onUpdated={(r) => setResumes(prev => prev.map(x => x.id === r.id ? { ...x, ai_feedback: r.ai_feedback } : x))}
       />
+
+      <MiniChatbot />
     </div>
   );
 }

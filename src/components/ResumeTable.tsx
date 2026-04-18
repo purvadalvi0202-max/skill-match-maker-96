@@ -5,7 +5,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Button } from '@/components/ui/button';
 import CircularScore from './CircularScore';
 import SkillChip from './SkillChip';
-import { Eye, Star, Trophy, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { Eye, Star, Trophy, ArrowUpDown, ArrowUp, ArrowDown, TriangleAlert as AlertTriangle, FolderOpen, Award } from 'lucide-react';
 
 interface Resume {
   id: string;
@@ -13,11 +13,14 @@ interface Resume {
   skills: string | null;
   experience: string | null;
   education: string | null;
+  projects: string | null;
+  certifications: string | null;
   score: number | null;
   ats_score: number | null;
   status: string | null;
   ml_prediction: string | null;
   shortlisted: boolean;
+  validation_status: string | null;
 }
 
 interface ResumeTableProps {
@@ -71,6 +74,7 @@ export default function ResumeTable({ resumes, topCandidateId, onView, onShortli
               ATS Score <SortIcon active={sortKey === 'ats_score'} asc={sortAsc} />
             </TableHead>
             <TableHead className="font-heading">Top Skills</TableHead>
+            <TableHead className="font-heading">Extras</TableHead>
             <TableHead className="cursor-pointer font-heading select-none" onClick={() => handleSort('status')}>
               Status <SortIcon active={sortKey === 'status'} asc={sortAsc} />
             </TableHead>
@@ -83,14 +87,17 @@ export default function ResumeTable({ resumes, topCandidateId, onView, onShortli
         <TableBody>
           {sorted.map((r, i) => {
             const isTop = r.id === topCandidateId;
+            const isSuspicious = r.validation_status === 'suspicious';
             const skillList = (r.skills || '').split(',').map(s => s.trim()).filter(Boolean).slice(0, 3);
+            const projectCount = (r.projects || '').split(',').map(s => s.trim()).filter(Boolean).length;
+            const certCount = (r.certifications || '').split(',').map(s => s.trim()).filter(Boolean).length;
             return (
               <motion.tr
                 key={r.id}
                 initial={{ opacity: 0, x: -10 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: Math.min(i * 0.03, 0.5) }}
-                className={`border-b border-border/30 transition-colors hover:bg-primary/5 ${isTop ? 'bg-primary/5' : ''}`}
+                className={`border-b border-border/30 transition-colors hover:bg-primary/5 ${isTop ? 'bg-primary/5' : ''} ${isSuspicious ? 'bg-warning/3' : ''}`}
               >
                 <TableCell>
                   <button
@@ -108,6 +115,11 @@ export default function ResumeTable({ resumes, topCandidateId, onView, onShortli
                         <Trophy className="h-3 w-3" />
                       </span>
                     )}
+                    {isSuspicious && (
+                      <span title="Suspicious resume" className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-warning/20 text-warning">
+                        <AlertTriangle className="h-3 w-3" />
+                      </span>
+                    )}
                     <span>{r.name}</span>
                   </div>
                 </TableCell>
@@ -119,6 +131,21 @@ export default function ResumeTable({ resumes, topCandidateId, onView, onShortli
                     {skillList.length > 0
                       ? skillList.map((s, j) => <SkillChip key={j} label={s} />)
                       : <span className="text-muted-foreground text-xs">—</span>}
+                  </div>
+                </TableCell>
+                <TableCell>
+                  <div className="flex items-center gap-1.5">
+                    {projectCount > 0 && (
+                      <span title={`${projectCount} project(s)`} className="inline-flex items-center gap-1 rounded-full bg-accent/10 text-accent-foreground border border-accent/20 px-2 py-0.5 text-xs font-medium">
+                        <FolderOpen className="h-3 w-3" />{projectCount}
+                      </span>
+                    )}
+                    {certCount > 0 && (
+                      <span title={`${certCount} certification(s)`} className="inline-flex items-center gap-1 rounded-full bg-warning/10 text-warning border border-warning/20 px-2 py-0.5 text-xs font-medium">
+                        <Award className="h-3 w-3" />{certCount}
+                      </span>
+                    )}
+                    {projectCount === 0 && certCount === 0 && <span className="text-muted-foreground text-xs">—</span>}
                   </div>
                 </TableCell>
                 <TableCell><Badge variant="outline" className={statusColor(r.status)}>{r.status || '—'}</Badge></TableCell>
@@ -136,7 +163,7 @@ export default function ResumeTable({ resumes, topCandidateId, onView, onShortli
             );
           })}
           {sorted.length === 0 && (
-            <TableRow><TableCell colSpan={7} className="text-center py-12 text-muted-foreground">No resumes match the filters</TableCell></TableRow>
+            <TableRow><TableCell colSpan={8} className="text-center py-12 text-muted-foreground">No resumes match the filters</TableCell></TableRow>
           )}
         </TableBody>
       </Table>

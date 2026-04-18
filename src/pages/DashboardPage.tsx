@@ -1,22 +1,19 @@
 import { useState, useEffect, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
-import { useAuth } from '@/hooks/useAuth';
-import { useUserRole } from '@/hooks/useUserRole';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import StatCard from '@/components/StatCard';
 import ResumeTable from '@/components/ResumeTable';
 import { ScoreBarChart, StatusDoughnut } from '@/components/ScoreChart';
-import LoadingSpinner from '@/components/LoadingSpinner';
+import DashboardSkeleton from '@/components/DashboardSkeleton';
 import ResumePreviewModal from '@/components/ResumePreviewModal';
 import { exportToCsv } from '@/lib/exportCsv';
+import { Download, Search, Wrench, X } from 'lucide-react';
 
 interface Resume {
   id: string;
@@ -38,9 +35,6 @@ interface Resume {
 interface Job { id: string; job_name: string; description: string; }
 
 export default function DashboardPage() {
-  const { signOut } = useAuth();
-  const { role } = useUserRole();
-  const navigate = useNavigate();
   const [jobs, setJobs] = useState<Job[]>([]);
   const [selectedJob, setSelectedJob] = useState('all');
   const [resumes, setResumes] = useState<Resume[]>([]);
@@ -108,41 +102,29 @@ export default function DashboardPage() {
     toast.success('Exported CSV');
   };
 
-  if (loading) return (
-    <div className="min-h-screen flex items-center justify-center bg-background">
-      <LoadingSpinner text="Loading dashboard..." />
-    </div>
-  );
+  if (loading) return <DashboardSkeleton />;
 
   return (
-    <div className="min-h-screen bg-background">
-      <nav className="border-b border-border/50 bg-card/50 backdrop-blur-sm sticky top-0 z-10">
-        <div className="container mx-auto flex items-center justify-between h-16 px-4">
-          <h1 className="text-xl font-heading font-bold text-gradient">Resume Screener</h1>
-          <div className="flex items-center gap-2">
-            {role && <Badge variant="outline" className="capitalize">{role}</Badge>}
-            <Button variant="ghost" onClick={() => navigate('/jobs')} className="rounded-xl">Jobs</Button>
-            <Button variant="ghost" onClick={() => navigate('/upload')} className="rounded-xl">Upload</Button>
-            <Button variant="outline" onClick={signOut} className="rounded-xl">Logout</Button>
+    <div className="container mx-auto px-4 py-8">
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8">
+          <div>
+            <h2 className="text-3xl font-heading font-bold">Dashboard</h2>
+            <p className="text-sm text-muted-foreground mt-1">Overview of your candidate pipeline</p>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={handleExport} className="rounded-xl gap-2">
+              <Download className="h-4 w-4" /> Export CSV
+            </Button>
+            <Select value={selectedJob} onValueChange={setSelectedJob}>
+              <SelectTrigger className="w-[220px] rounded-xl"><SelectValue placeholder="Filter by job" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Jobs</SelectItem>
+                {jobs.map(j => <SelectItem key={j.id} value={j.id}>{j.job_name}</SelectItem>)}
+              </SelectContent>
+            </Select>
           </div>
         </div>
-      </nav>
-
-      <div className="container mx-auto px-4 py-8">
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8">
-            <h2 className="text-3xl font-heading font-bold">Dashboard</h2>
-            <div className="flex gap-2">
-              <Button variant="outline" onClick={handleExport} className="rounded-xl">📥 Export CSV</Button>
-              <Select value={selectedJob} onValueChange={setSelectedJob}>
-                <SelectTrigger className="w-[220px] rounded-xl"><SelectValue placeholder="Filter by job" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Jobs</SelectItem>
-                  {jobs.map(j => <SelectItem key={j.id} value={j.id}>{j.job_name}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
 
           {/* Stats */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">

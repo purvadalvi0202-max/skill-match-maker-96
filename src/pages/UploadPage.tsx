@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -12,9 +12,10 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { extractTextFromFile, SAMPLE_RESUMES } from '@/lib/resumeParser';
 import { analyzeResume } from '@/lib/nlp';
+import { UploadCloud, FileText, X, Search, Sparkles } from 'lucide-react';
 
 export default function UploadPage() {
-  const { user, signOut } = useAuth();
+  const { user } = useAuth();
   const navigate = useNavigate();
   const [jobs, setJobs] = useState<{ id: string; job_name: string }[]>([]);
   const [selectedJob, setSelectedJob] = useState('');
@@ -102,21 +103,12 @@ export default function UploadPage() {
   const handleDemoAnalyze = () => runAnalysis(SAMPLE_RESUMES.map(s => ({ name: s.name, text: s.text })));
 
   return (
-    <div className="min-h-screen bg-background">
-      <nav className="border-b border-border/50 bg-card/50 backdrop-blur-sm sticky top-0 z-10">
-        <div className="container mx-auto flex items-center justify-between h-16 px-4">
-          <h1 className="text-xl font-heading font-bold text-gradient">Resume Screener</h1>
-          <div className="flex items-center gap-3">
-            <Button variant="ghost" onClick={() => navigate('/jobs')} className="rounded-xl">Jobs</Button>
-            <Button variant="ghost" onClick={() => navigate('/dashboard')} className="rounded-xl">Dashboard</Button>
-            <Button variant="outline" onClick={signOut} className="rounded-xl">Logout</Button>
-          </div>
+    <div className="container mx-auto px-4 py-8 max-w-3xl">
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+        <div className="mb-8">
+          <h2 className="text-3xl font-heading font-bold">Upload & Analyze</h2>
+          <p className="text-sm text-muted-foreground mt-1">Drop resumes, pick a job, and let AI score them.</p>
         </div>
-      </nav>
-
-      <div className="container mx-auto px-4 py-8 max-w-3xl">
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-          <h2 className="text-3xl font-heading font-bold mb-8">Upload & Analyze</h2>
 
           {analyzing && (
             <div className="glass-card rounded-2xl p-6 mb-6">

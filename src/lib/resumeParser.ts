@@ -52,6 +52,111 @@ export function validateResumeFile(file: File): FileValidationResult {
   return { valid: true };
 }
 
+export interface ContentValidationResult {
+  isResume: boolean;
+  confidence: number;
+  reason?: string;
+}
+
+/**
+ * Heuristic content-based resume detector.
+ * Looks for typical resume sections + contact info + resume vocabulary.
+ * Rejects reports, essays, articles, assignments, etc.
+ */
+export function validateResumeContent(text: string): ContentValidationResult {
+  if (!text || text.trim().length < 150) {
+    return { isResume: false, confidence: 0, reason: 'File content is too short to be a resume.' };
+  }
+
+  const lower = text.toLowerCase();
+  const wordCount = text.split(/\s+/).filter(Boolean).length;
+
+  // 1. Resume section headers (need at least 2)
+  const sectionPatterns = [
+    /\b(work\s+experience|professional\s+experience|employment\s+history|experience)\b/,
+    /\b(education|academic\s+background|qualifications)\b/,
+    /\b(skills|technical\s+skills|core\s+competencies|expertise)\b/,
+    /\b(projects?|personal\s+projects?|key\s+projects?)\b/,
+    /\b(certifications?|licenses?|achievements?|awards?)\b/,
+    /\b(summary|profile|objective|about\s+me)\b/,
+    /\b(contact|contact\s+information|personal\s+details)\b/,
+  ];
+  const sectionHits = sectionPatterns.filter(r => r.test(lower)).length;
+
+  // 2. Contact signals (email, phone, linkedin, github)
+  const hasEmail = /[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/i.test(text);
+  const hasPhone = /(\+?\d{1,3}[\s-]?)?\(?\d{3,5}\)?[\s.-]?\d{3,4}[\s.-]?\d{3,4}/.test(text);
+  const hasLinkedIn = /linkedin\.com\/in\//i.test(text);
+  const hasGithub = /github\.com\//i.test(text);
+  const contactHits = [hasEmail, hasPhone, hasLinkedIn, hasGithub].filter(Boolean).length;
+
+  // 3. Resume vocabulary (action verbs + role words)
+  const resumeVocab = [
+    'developed', 'designed', 'implemented', 'managed', 'led', 'built', 'created',
+    'engineered', 'architected', 'collaborated', 'responsible for', 'achieved',
+    'engineer', 'developer', 'analyst', 'manager', 'intern', 'consultant',
+    'bachelor', 'master', 'b.tech', 'b.sc', 'm.sc', 'mba', 'phd', 'university', 'college',
+    'curriculum vitae', 'resume', 'cv',
+  ];
+  const vocabHits = resumeVocab.filter(w => lower.includes(w)).length;
+
+  // 4. Negative signals — content typical of reports, papers, articles
+  const negativePatterns = [
+    /\babstract\b[\s\S]{0,200}\bintroduction\b/i,
+    /\b(table\s+of\s+contents|chapter\s+\d|figure\s+\d|fig\.\s*\d)/i,
+    /\b(stock\s+(price|market|prediction)|forecasting\s+model|time\s+series)\b/i,
+    /\b(literature\s+review|methodology|research\s+paper|hypothesis|conclusion)\b/i,
+    /\b(assignment|homework|term\s+paper|thesis|dissertation)\b/i,
+    /\b(slide\s+\d|presentation\s+by|copyright\s+\u00a9)\b/i,
+    /\bibid\.|et\s+al\./i,
+    /\breferences\b[\s\S]{0,500}\[\d+\]/i,
+  ];
+  const negativeHits = negativePatterns.filter(r => r.test(text)).length;
+
+  // Score: must have resume structure AND not look like a report
+  const positiveScore = sectionHits * 2 + contactHits + Math.min(vocabHits, 6);
+  const finalScore = positiveScore - negativeHits * 4;
+  const confidence = Math.max(0, Math.min(100, Math.round((finalScore / 14) * 100)));
+
+  if (negativeHits >= 2) {
+    return {
+      isResume: false,
+      confidence,
+      reason: 'This file looks like a report, paper, or assignment — not a resume. Please upload an actual CV/Resume.',
+    };
+  }
+  if (sectionHits < 2) {
+    return {
+      isResume: false,
+      confidence,
+      reason: 'No recognizable resume sections (Experience, Education, Skills, etc.). Please upload a valid Resume/CV.',
+    };
+  }
+  if (contactHits === 0) {
+    return {
+      isResume: false,
+      confidence,
+      reason: 'No contact information found (email, phone, LinkedIn). Please upload a valid Resume/CV.',
+    };
+  }
+  if (vocabHits < 3) {
+    return {
+      isResume: false,
+      confidence,
+      reason: 'Content does not match a typical resume. Please upload a valid Resume/CV.',
+    };
+  }
+  if (wordCount > 3000 && sectionHits < 4) {
+    return {
+      isResume: false,
+      confidence,
+      reason: 'File is too long and lacks resume structure — likely a report or document, not a resume.',
+    };
+  }
+
+  return { isResume: true, confidence };
+}
+
 export async function extractTextFromFile(file: File): Promise<string> {
   if (file.type === 'text/plain' || file.name.endsWith('.txt')) {
     return await file.text();

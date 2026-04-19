@@ -93,6 +93,20 @@ export default function DashboardPage() {
     else toast.success(value ? 'Added to shortlist' : 'Removed from shortlist');
   };
 
+  const deleteResume = async (id: string) => {
+    const target = resumes.find(r => r.id === id);
+    if (!confirm(`Delete resume "${target?.name ?? ''}"? This cannot be undone.`)) return;
+    const prev = resumes;
+    setResumes(p => p.filter(r => r.id !== id));
+    const { error } = await supabase.from('resumes').delete().eq('id', id);
+    if (error) {
+      setResumes(prev);
+      toast.error('Failed to delete resume');
+    } else {
+      toast.success('Resume deleted');
+    }
+  };
+
   const handleExport = () => {
     if (!filtered.length) return toast.error('Nothing to export');
     exportToCsv('resume-results.csv', filtered.map(r => ({
@@ -242,6 +256,7 @@ export default function DashboardPage() {
           topCandidateId={topCandidate?.id}
           onView={setPreviewId}
           onShortlistToggle={toggleShortlist}
+          onDelete={deleteResume}
         />
       </motion.div>
 

@@ -5,7 +5,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Button } from '@/components/ui/button';
 import CircularScore from './CircularScore';
 import SkillChip from './SkillChip';
-import { Eye, Star, Trophy, ArrowUpDown, ArrowUp, ArrowDown, TriangleAlert as AlertTriangle, FolderOpen, Award } from 'lucide-react';
+import { Eye, Star, Trophy, ArrowUpDown, ArrowUp, ArrowDown, TriangleAlert as AlertTriangle, FolderOpen, Award, Trash2 } from 'lucide-react';
 
 interface Resume {
   id: string;
@@ -28,11 +28,12 @@ interface ResumeTableProps {
   topCandidateId?: string;
   onView: (id: string) => void;
   onShortlistToggle: (id: string, value: boolean) => void;
+  onDelete?: (id: string) => void;
 }
 
 type SortKey = 'name' | 'score' | 'ats_score' | 'status' | 'ml_prediction';
 
-export default function ResumeTable({ resumes, topCandidateId, onView, onShortlistToggle }: ResumeTableProps) {
+export default function ResumeTable({ resumes, topCandidateId, onView, onShortlistToggle, onDelete }: ResumeTableProps) {
   const [sortKey, setSortKey] = useState<SortKey>('ats_score');
   const [sortAsc, setSortAsc] = useState(false);
 
@@ -155,9 +156,22 @@ export default function ResumeTable({ resumes, topCandidateId, onView, onShortli
                   </Badge>
                 </TableCell>
                 <TableCell className="text-right">
-                  <Button size="sm" variant="ghost" onClick={() => onView(r.id)} className="rounded-lg gap-1.5">
-                    <Eye className="h-3.5 w-3.5" /> View
-                  </Button>
+                  <div className="flex justify-end gap-1">
+                    <Button size="sm" variant="ghost" onClick={() => onView(r.id)} className="rounded-lg gap-1.5">
+                      <Eye className="h-3.5 w-3.5" /> View
+                    </Button>
+                    {onDelete && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => onDelete(r.id)}
+                        className="rounded-lg text-destructive hover:bg-destructive/10 hover:text-destructive"
+                        title="Delete resume"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
+                  </div>
                 </TableCell>
               </motion.tr>
             );

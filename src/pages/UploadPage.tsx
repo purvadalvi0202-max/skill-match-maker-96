@@ -11,7 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { extractTextFromFile, validateResumeFile, SAMPLE_RESUMES } from '@/lib/resumeParser';
+import { extractTextFromFile, validateResumeFile, validateResumeContent, SAMPLE_RESUMES } from '@/lib/resumeParser';
 import { analyzeResume } from '@/lib/nlp';
 import { CloudUpload as UploadCloud, FileText, X, Search, Sparkles, TriangleAlert as AlertTriangle, CircleCheck as CheckCircle, Users } from 'lucide-react';
 
@@ -130,9 +130,31 @@ export default function UploadPage() {
   const handleAnalyze = async () => {
     const validOnly = validatedFiles.filter(v => v.valid);
     if (validOnly.length === 0) return toast.error('Upload at least one valid resume');
-    setAnalyzing(true); setProgressLabel('Reading files...');
-    const items = await Promise.all(validOnly.map(async v => ({ name: v.file.name, text: await extractTextFromFile(v.file) })));
-    await runAnalysis(items);
+    setAnalyzing(true); setProgressLabel('Reading & validating files...');
+    const extracted = await Promise.all(
+      validOnly.map(async v => ({ name: v.file.name, text: await extractTextFromFile(v.file) }))
+    );
+
+    // Content-based resume detection — reject reports, papers, assignments, etc.
+    const accepted: { name: string; text: string }[] = [];
+    const rejected: string[] = [];
+    for (const it of extracted) {
+      const check = validateResumeContent(it.text);
+      if (check.isResume) {
+        accepted.push(it);
+      } else {
+        rejected.push(it.name);
+        toast.error(`${it.name}: ${check.reason}`, { duration: 6000 });
+      }
+    }
+
+    if (accepted.length === 0) {
+      setAnalyzing(false);
+      setValidatedFiles(prev => prev.filter(v => !rejected.includes(v.file.name)));
+      return toast.error('No valid resumes detected. Only actual CVs/Resumes are accepted.');
+    }
+
+    await runAnalysis(accepted);
     setValidatedFiles([]);
   };
 

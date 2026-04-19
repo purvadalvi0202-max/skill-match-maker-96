@@ -20,36 +20,35 @@ export interface FileValidationResult {
 }
 
 export function validateResumeFile(file: File): FileValidationResult {
-  const ext = '.' + file.name.split('.').pop()?.toLowerCase();
+  const lowerName = file.name.toLowerCase();
+  const ext = '.' + (lowerName.split('.').pop() || '');
+  const GENERIC_ERROR = 'Invalid file: Upload a valid Resume/CV (PDF/TXT only)';
 
+  // Block known non-resume formats by extension regardless of MIME spoofing
+  const BLOCKED_EXTS = [
+    '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.csv', '.rtf', '.odt',
+    '.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.svg', '.heic', '.tiff',
+    '.mp3', '.mp4', '.mov', '.avi', '.wav', '.zip', '.rar', '.7z', '.tar', '.gz',
+    '.exe', '.dmg', '.apk', '.html', '.htm', '.json', '.xml',
+  ];
+  if (BLOCKED_EXTS.includes(ext)) {
+    return { valid: false, error: `${GENERIC_ERROR}. "${ext}" files (assignments, slides, images, etc.) are not accepted.` };
+  }
   if (REJECTED_TYPES.includes(file.type)) {
-    return {
-      valid: false,
-      error: 'Invalid file: Upload a valid Resume/CV (PDF/TXT only). Images, Word docs, and spreadsheets are not accepted.',
-    };
+    return { valid: false, error: `${GENERIC_ERROR}. Images, Word docs, slides, and spreadsheets are not accepted.` };
   }
-
   if (!ALLOWED_EXTENSIONS.includes(ext)) {
-    return {
-      valid: false,
-      error: `Invalid file: Upload a valid Resume/CV (PDF/TXT only). "${ext}" files are not accepted.`,
-    };
+    return { valid: false, error: `${GENERIC_ERROR}. Only .pdf and .txt resumes are allowed.` };
   }
-
-  if (!ALLOWED_TYPES.includes(file.type) && file.type !== '') {
-    return {
-      valid: false,
-      error: 'Invalid file: Upload a valid Resume/CV (PDF/TXT only).',
-    };
+  if (file.type && !ALLOWED_TYPES.includes(file.type)) {
+    return { valid: false, error: GENERIC_ERROR };
   }
-
   if (file.size > 5 * 1024 * 1024) {
-    return {
-      valid: false,
-      error: 'File too large. Maximum size is 5MB.',
-    };
+    return { valid: false, error: 'File too large. Maximum size is 5MB.' };
   }
-
+  if (file.size < 200) {
+    return { valid: false, error: `${GENERIC_ERROR}. File appears to be empty or too small to be a resume.` };
+  }
   return { valid: true };
 }
 

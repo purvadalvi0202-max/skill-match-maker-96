@@ -7,7 +7,8 @@ import { toast } from 'sonner';
 import LoadingSpinner from './LoadingSpinner';
 import CircularScore from './CircularScore';
 import { ChipList } from './SkillChip';
-import { TriangleAlert as AlertTriangle, FolderOpen, Award } from 'lucide-react';
+import { TriangleAlert as AlertTriangle, FolderOpen, Award, CircleCheck as CheckCircle2, Briefcase, GraduationCap } from 'lucide-react';
+import { safeParseArray, type ExperienceItem, type EducationItem, type ProjectItem, type CertificationItem } from '@/lib/nlp';
 
 interface Resume {
   id: string;
@@ -58,8 +59,28 @@ export default function ResumePreviewModal({ resume, jobDescription, onClose, on
   if (!resume) return null;
 
   const isSuspicious = resume.validation_status === 'suspicious';
-  const projectList = (resume.projects || '').split(',').map(s => s.trim()).filter(Boolean);
-  const certList = (resume.certifications || '').split(',').map(s => s.trim()).filter(Boolean);
+  const experienceItems = safeParseArray<ExperienceItem>(resume.experience);
+  const educationItems = safeParseArray<EducationItem>(resume.education);
+  const projectItems = safeParseArray<ProjectItem>(resume.projects);
+  const certItems = safeParseArray<CertificationItem>(resume.certifications);
+
+  const isFresher = experienceItems.length === 0 && /\bfresher\b/i.test(resume.raw_text || '');
+  const expValid = experienceItems.length > 0 && experienceItems.every(e => e.company && e.role && e.duration);
+  const eduValid = educationItems.length > 0 && educationItems.every(e => e.degree && e.college);
+
+  const ValidBadge = ({ ok, fresher }: { ok: boolean; fresher?: boolean }) => fresher ? (
+    <Badge variant="outline" className="bg-primary/10 text-primary border-primary/30 text-[10px] gap-1">
+      <CheckCircle2 className="h-3 w-3" /> Fresher
+    </Badge>
+  ) : ok ? (
+    <Badge variant="outline" className="bg-success/10 text-success border-success/30 text-[10px] gap-1">
+      <CheckCircle2 className="h-3 w-3" /> Valid
+    </Badge>
+  ) : (
+    <Badge variant="outline" className="bg-warning/10 text-warning border-warning/30 text-[10px] gap-1">
+      <AlertTriangle className="h-3 w-3" /> Missing / Incomplete
+    </Badge>
+  );
 
   const generateFeedback = async () => {
     setLoading(true);
@@ -171,39 +192,105 @@ export default function ResumePreviewModal({ resume, jobDescription, onClose, on
             <ChipList items={resume.education} />
           </div>
 
-          {projectList.length > 0 && (
-            <div>
-              <div className="flex items-center gap-2 mb-2">
-                <FolderOpen className="h-4 w-4 text-accent-foreground" />
-                <h4 className="font-heading font-semibold">Projects</h4>
-                <Badge variant="outline" className="text-xs bg-accent/10 text-accent-foreground border-accent/20">{projectList.length}</Badge>
-              </div>
-              <div className="flex flex-wrap gap-1.5">
-                {projectList.map((p, i) => (
-                  <span key={i} className="inline-flex items-center rounded-lg border border-accent/20 bg-accent/10 text-accent-foreground px-2.5 py-1 text-xs font-medium">
-                    {p}
-                  </span>
-                ))}
-              </div>
+          {/* Experience */}
+          <div>
+            <div className="flex items-center gap-2 mb-2">
+              <Briefcase className="h-4 w-4 text-primary" />
+              <h4 className="font-heading font-semibold">Experience</h4>
+              <ValidBadge ok={expValid} fresher={isFresher} />
             </div>
-          )}
+            {isFresher ? (
+              <p className="text-sm text-muted-foreground italic">Experience Level: Fresher</p>
+            ) : experienceItems.length === 0 ? (
+              <p className="text-sm text-warning">⚠ Incomplete experience details</p>
+            ) : (
+              <div className="space-y-2">
+                {experienceItems.map((e, i) => {
+                  const incomplete = !e.company || !e.role || !e.duration;
+                  return (
+                    <div key={i} className={`rounded-lg border p-3 text-sm ${incomplete ? 'border-warning/30 bg-warning/5' : 'border-border/50 bg-muted/30'}`}>
+                      <div className="font-medium">{e.role || <span className="text-warning">Role missing</span>}</div>
+                      <div className="text-muted-foreground text-xs mt-0.5">
+                        {e.company || <span className="text-warning">Company missing</span>} {' • '}
+                        {e.duration || <span className="text-warning">Duration missing</span>}
+                      </div>
+                      {incomplete && <div className="text-xs text-warning mt-1">⚠ Incomplete experience details</div>}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
 
-          {certList.length > 0 && (
-            <div>
-              <div className="flex items-center gap-2 mb-2">
-                <Award className="h-4 w-4 text-warning" />
-                <h4 className="font-heading font-semibold">Certifications</h4>
-                <Badge variant="outline" className="text-xs bg-warning/10 text-warning border-warning/20">{certList.length}</Badge>
+          {/* Education */}
+          <div>
+            <div className="flex items-center gap-2 mb-2">
+              <GraduationCap className="h-4 w-4 text-success" />
+              <h4 className="font-heading font-semibold">Education</h4>
+              <ValidBadge ok={eduValid} />
+            </div>
+            {educationItems.length === 0 ? (
+              <p className="text-sm text-warning">⚠ Incomplete education details</p>
+            ) : (
+              <div className="space-y-2">
+                {educationItems.map((e, i) => {
+                  const incomplete = !e.degree || !e.college;
+                  return (
+                    <div key={i} className={`rounded-lg border p-3 text-sm ${incomplete ? 'border-warning/30 bg-warning/5' : 'border-border/50 bg-muted/30'}`}>
+                      <div className="font-medium">{e.degree || <span className="text-warning">Degree missing</span>}</div>
+                      <div className="text-muted-foreground text-xs mt-0.5">{e.college || <span className="text-warning">College missing</span>}</div>
+                    </div>
+                  );
+                })}
               </div>
+            )}
+          </div>
+
+          {/* Projects */}
+          <div>
+            <div className="flex items-center gap-2 mb-2">
+              <FolderOpen className="h-4 w-4 text-accent-foreground" />
+              <h4 className="font-heading font-semibold">Projects</h4>
+              <ValidBadge ok={projectItems.length > 0} />
+              {projectItems.length > 0 && (
+                <Badge variant="outline" className="text-xs bg-accent/10 text-accent-foreground border-accent/20">{projectItems.length}</Badge>
+              )}
+            </div>
+            {projectItems.length === 0 ? (
+              <p className="text-sm text-warning">⚠ No valid projects found</p>
+            ) : (
               <div className="flex flex-wrap gap-1.5">
-                {certList.map((c, i) => (
-                  <span key={i} className="inline-flex items-center gap-1 rounded-lg border border-warning/20 bg-warning/10 text-warning px-2.5 py-1 text-xs font-medium">
-                    <Award className="h-3 w-3" />{c}
+                {projectItems.map((p, i) => (
+                  <span key={i} className="inline-flex items-center rounded-lg border border-accent/20 bg-accent/10 text-accent-foreground px-2.5 py-1 text-xs font-medium">
+                    {p.project_name}
                   </span>
                 ))}
               </div>
+            )}
+          </div>
+
+          {/* Certifications */}
+          <div>
+            <div className="flex items-center gap-2 mb-2">
+              <Award className="h-4 w-4 text-warning" />
+              <h4 className="font-heading font-semibold">Certifications</h4>
+              <ValidBadge ok={certItems.length > 0} />
+              {certItems.length > 0 && (
+                <Badge variant="outline" className="text-xs bg-warning/10 text-warning border-warning/20">{certItems.length}</Badge>
+              )}
             </div>
-          )}
+            {certItems.length === 0 ? (
+              <p className="text-sm text-warning">⚠ No certifications found</p>
+            ) : (
+              <div className="flex flex-wrap gap-1.5">
+                {certItems.map((c, i) => (
+                  <span key={i} className="inline-flex items-center gap-1 rounded-lg border border-warning/20 bg-warning/10 text-warning px-2.5 py-1 text-xs font-medium">
+                    <Award className="h-3 w-3" />{c.certification_name}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
 
           <div>
             <div className="flex items-center justify-between mb-2">

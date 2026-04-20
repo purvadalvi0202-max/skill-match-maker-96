@@ -33,10 +33,8 @@ function AnimatedRoutes() {
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <BrowserRouter>
-      <TooltipProvider delayDuration={0}>
-        <Sonner />
-        <AnimatedRoutes />
-      </TooltipProvider>
+      <Sonner />
+      <AnimatedRoutes />
     </BrowserRouter>
   </QueryClientProvider>
 );

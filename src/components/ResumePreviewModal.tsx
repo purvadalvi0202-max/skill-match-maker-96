@@ -183,14 +183,7 @@ export default function ResumePreviewModal({ resume, jobDescription, onClose, on
             <h4 className="font-heading font-semibold mb-2">Missing Skills</h4>
             {resume.missing_skills ? <ChipList items={resume.missing_skills} variant="destructive" /> : <p className="text-sm text-muted-foreground">None — all required skills present.</p>}
           </div>
-          <div>
-            <h4 className="font-heading font-semibold mb-2">Experience</h4>
-            <ChipList items={resume.experience} />
-          </div>
-          <div>
-            <h4 className="font-heading font-semibold mb-2">Education</h4>
-            <ChipList items={resume.education} />
-          </div>
+
 
           {/* Experience */}
           <div>

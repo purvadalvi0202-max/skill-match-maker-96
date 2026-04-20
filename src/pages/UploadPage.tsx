@@ -13,7 +13,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { extractTextFromFile, validateResumeFile, validateResumeContent, SAMPLE_RESUMES } from '@/lib/resumeParser';
 import { analyzeResume } from '@/lib/nlp';
-import { CloudUpload as UploadCloud, FileText, X, Search, Sparkles, TriangleAlert as AlertTriangle, CircleCheck as CheckCircle, Users } from 'lucide-react';
+import { CloudUpload as UploadCloud, X, Search, Sparkles, TriangleAlert as AlertTriangle, CircleCheck as CheckCircle, Users } from 'lucide-react';
 
 type Preference = 'none' | 'women' | 'men';
 
@@ -28,14 +28,11 @@ export default function UploadPage() {
   const navigate = useNavigate();
   const [jobs, setJobs] = useState<{ id: string; job_name: string }[]>([]);
   const [selectedJob, setSelectedJob] = useState('');
-  const [newJobName, setNewJobName] = useState('');
-  const [newJobDesc, setNewJobDesc] = useState('');
   const [validatedFiles, setValidatedFiles] = useState<ValidatedFile[]>([]);
   const [dragActive, setDragActive] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const [progress, setProgress] = useState(0);
   const [progressLabel, setProgressLabel] = useState('');
-  const [showNewJob, setShowNewJob] = useState(false);
   const [preference, setPreference] = useState<Preference>('none');
 
   useEffect(() => { fetchJobs(); }, []);
@@ -43,18 +40,6 @@ export default function UploadPage() {
   const fetchJobs = async () => {
     const { data } = await supabase.from('jobs').select('id, job_name');
     if (data) setJobs(data);
-  };
-
-  const handleCreateJob = async () => {
-    if (!newJobName || !newJobDesc) return toast.error('Fill in job name and description');
-    const { data, error } = await supabase.from('jobs').insert({
-      job_name: newJobName, description: newJobDesc, user_id: user!.id
-    }).select('id, job_name').single();
-    if (error) return toast.error(error.message);
-    setJobs(prev => [...prev, data]);
-    setSelectedJob(data.id);
-    setNewJobName(''); setNewJobDesc(''); setShowNewJob(false);
-    toast.success('Job created!');
   };
 
   const addFiles = useCallback((newFiles: File[]) => {
@@ -182,26 +167,17 @@ export default function UploadPage() {
 
         <div className="glass-card rounded-2xl p-6 mb-6">
           <Label className="text-base font-heading font-semibold">Select Job Position</Label>
-          <div className="flex gap-3 mt-3">
-            <Select value={selectedJob} onValueChange={setSelectedJob}>
-              <SelectTrigger className="rounded-xl flex-1"><SelectValue placeholder="Choose a job..." /></SelectTrigger>
-              <SelectContent>
-                {jobs.map(j => <SelectItem key={j.id} value={j.id}>{j.job_name}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            <Button variant="outline" onClick={() => setShowNewJob(!showNewJob)} className="rounded-xl">
-              {showNewJob ? 'Cancel' : '+ New Job'}
-            </Button>
-          </div>
-          <AnimatePresence>
-            {showNewJob && (
-              <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="mt-4 space-y-3 overflow-hidden">
-                <Input placeholder="Job title" value={newJobName} onChange={e => setNewJobName(e.target.value)} className="rounded-xl" />
-                <Textarea placeholder="Job description with required skills, experience, education, projects..." value={newJobDesc} onChange={e => setNewJobDesc(e.target.value)} className="rounded-xl min-h-[120px]" />
-                <Button onClick={handleCreateJob} className="rounded-xl gradient-primary text-primary-foreground border-0">Create Job</Button>
-              </motion.div>
-            )}
-          </AnimatePresence>
+          <p className="text-xs text-muted-foreground mt-1 mb-3">
+            Manage jobs from the <a href="/jobs" className="text-primary underline-offset-2 hover:underline">Jobs page</a>.
+          </p>
+          <Select value={selectedJob} onValueChange={setSelectedJob}>
+            <SelectTrigger className="rounded-xl w-full"><SelectValue placeholder="Choose a job..." /></SelectTrigger>
+            <SelectContent>
+              {jobs.length === 0 ? (
+                <div className="px-3 py-2 text-sm text-muted-foreground">No jobs yet — create one in Jobs.</div>
+              ) : jobs.map(j => <SelectItem key={j.id} value={j.id}>{j.job_name}</SelectItem>)}
+            </SelectContent>
+          </Select>
         </div>
 
         <div className="glass-card rounded-2xl p-6 mb-6">

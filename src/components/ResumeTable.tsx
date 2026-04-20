@@ -3,9 +3,11 @@ import { motion } from 'framer-motion';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import CircularScore from './CircularScore';
 import SkillChip from './SkillChip';
-import { Eye, Star, Trophy, ArrowUpDown, ArrowUp, ArrowDown, TriangleAlert as AlertTriangle, FolderOpen, Award, Trash2 } from 'lucide-react';
+import { Eye, Star, Trophy, ArrowUpDown, ArrowUp, ArrowDown, TriangleAlert as AlertTriangle, FolderOpen, Award, Trash2, Users } from 'lucide-react';
+import { safeParseArray } from '@/lib/nlp';
 
 interface Resume {
   id: string;
@@ -29,11 +31,16 @@ interface ResumeTableProps {
   onView: (id: string) => void;
   onShortlistToggle: (id: string, value: boolean) => void;
   onDelete?: (id: string) => void;
+  preferenceMap?: Record<string, 'none' | 'women' | 'men'>;
+  onPreferenceChange?: (id: string, value: 'none' | 'women' | 'men') => void;
 }
 
 type SortKey = 'name' | 'score' | 'ats_score' | 'status' | 'ml_prediction';
 
-export default function ResumeTable({ resumes, topCandidateId, onView, onShortlistToggle, onDelete }: ResumeTableProps) {
+export default function ResumeTable({
+  resumes, topCandidateId, onView, onShortlistToggle, onDelete,
+  preferenceMap, onPreferenceChange,
+}: ResumeTableProps) {
   const [sortKey, setSortKey] = useState<SortKey>('ats_score');
   const [sortAsc, setSortAsc] = useState(false);
 
@@ -79,9 +86,11 @@ export default function ResumeTable({ resumes, topCandidateId, onView, onShortli
             <TableHead className="cursor-pointer font-heading select-none" onClick={() => handleSort('status')}>
               Status <SortIcon active={sortKey === 'status'} asc={sortAsc} />
             </TableHead>
-            <TableHead className="cursor-pointer font-heading select-none" onClick={() => handleSort('ml_prediction')}>
-              ML <SortIcon active={sortKey === 'ml_prediction'} asc={sortAsc} />
-            </TableHead>
+            {onPreferenceChange && (
+              <TableHead className="font-heading">
+                <span className="inline-flex items-center gap-1"><Users className="h-3 w-3" /> Preference</span>
+              </TableHead>
+            )}
             <TableHead className="text-right">Action</TableHead>
           </TableRow>
         </TableHeader>
@@ -90,8 +99,9 @@ export default function ResumeTable({ resumes, topCandidateId, onView, onShortli
             const isTop = r.id === topCandidateId;
             const isSuspicious = r.validation_status === 'suspicious';
             const skillList = (r.skills || '').split(',').map(s => s.trim()).filter(Boolean).slice(0, 3);
-            const projectCount = (r.projects || '').split(',').map(s => s.trim()).filter(Boolean).length;
-            const certCount = (r.certifications || '').split(',').map(s => s.trim()).filter(Boolean).length;
+            const projectCount = safeParseArray<{ project_name: string }>(r.projects).length;
+            const certCount = safeParseArray<{ certification_name: string }>(r.certifications).length;
+            const pref = preferenceMap?.[r.id] ?? 'none';
             return (
               <motion.tr
                 key={r.id}
@@ -150,11 +160,20 @@ export default function ResumeTable({ resumes, topCandidateId, onView, onShortli
                   </div>
                 </TableCell>
                 <TableCell><Badge variant="outline" className={statusColor(r.status)}>{r.status || '—'}</Badge></TableCell>
-                <TableCell>
-                  <Badge variant={r.ml_prediction === 'Suitable' ? 'default' : 'secondary'} className="text-xs">
-                    {r.ml_prediction || '—'}
-                  </Badge>
-                </TableCell>
+                {onPreferenceChange && (
+                  <TableCell>
+                    <Select value={pref} onValueChange={(v) => onPreferenceChange(r.id, v as 'none' | 'women' | 'men')}>
+                      <SelectTrigger className="h-8 text-xs rounded-lg w-[140px]">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">No Preference</SelectItem>
+                        <SelectItem value="women">Prefer Women</SelectItem>
+                        <SelectItem value="men">Prefer Men</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </TableCell>
+                )}
                 <TableCell className="text-right">
                   <div className="flex justify-end gap-1">
                     <Button size="sm" variant="ghost" onClick={() => onView(r.id)} className="rounded-lg gap-1.5">
@@ -177,7 +196,7 @@ export default function ResumeTable({ resumes, topCandidateId, onView, onShortli
             );
           })}
           {sorted.length === 0 && (
-            <TableRow><TableCell colSpan={8} className="text-center py-12 text-muted-foreground">No resumes match the filters</TableCell></TableRow>
+            <TableRow><TableCell colSpan={onPreferenceChange ? 9 : 8} className="text-center py-12 text-muted-foreground">No resumes match the filters</TableCell></TableRow>
           )}
         </TableBody>
       </Table>

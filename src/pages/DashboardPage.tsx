@@ -86,6 +86,45 @@ export default function DashboardPage() {
   const previewResume = resumes.find(r => r.id === previewId) || null;
   const previewJob = previewResume ? jobs.find(j => j.id === previewResume.job_id) : null;
 
+  const preferenceMap = useMemo(() => {
+    const m: Record<string, 'none' | 'women' | 'men'> = {};
+    resumes.forEach(r => {
+      // Derive from preference_boost + gender_signal stored at analyze time.
+      // Default 'none'; we store the explicit per-row preference in localStorage for instant edits.
+      const stored = (typeof window !== 'undefined' ? localStorage.getItem(`pref-${r.id}`) : null) as
+        | 'none' | 'women' | 'men' | null;
+      m[r.id] = stored ?? 'none';
+    });
+    return m;
+  }, [resumes]);
+
+  const handlePreferenceChange = async (id: string, value: 'none' | 'women' | 'men') => {
+    const target = resumes.find(r => r.id === id);
+    if (!target) return;
+    // Compute boost: +3 if matching gender signal else 0
+    const sig = (target as any).gender_signal as string | null;
+    let boost = 0;
+    if (value === 'women' && sig === 'female') boost = 3;
+    if (value === 'men' && sig === 'male') boost = 3;
+
+    // Adjust ats_score: remove old boost, add new
+    const oldBoost = target.preference_boost ?? 0;
+    const newAts = Math.max(0, Math.min(100, (target.ats_score ?? 0) - oldBoost + boost));
+
+    if (typeof window !== 'undefined') localStorage.setItem(`pref-${id}`, value);
+
+    setResumes(prev => prev.map(r => r.id === id
+      ? { ...r, preference_boost: boost, ats_score: newAts }
+      : r));
+
+    const { error } = await supabase
+      .from('resumes')
+      .update({ preference_boost: boost, ats_score: newAts })
+      .eq('id', id);
+    if (error) toast.error('Failed to update preference');
+    else toast.success(`Preference: ${value === 'none' ? 'No preference' : value === 'women' ? 'Prefer Women' : 'Prefer Men'}`);
+  };
+
   const toggleShortlist = async (id: string, value: boolean) => {
     setResumes(prev => prev.map(r => r.id === id ? { ...r, shortlisted: value } : r));
     const { error } = await supabase.from('resumes').update({ shortlisted: value }).eq('id', id);
@@ -257,6 +296,8 @@ export default function DashboardPage() {
           onView={setPreviewId}
           onShortlistToggle={toggleShortlist}
           onDelete={deleteResume}
+          preferenceMap={preferenceMap}
+          onPreferenceChange={handlePreferenceChange}
         />
       </motion.div>
 

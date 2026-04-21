@@ -199,10 +199,46 @@ function extractCertificationItems(section: string): CertificationItem[] {
 export function extractStructured(text: string): StructuredResume {
   const sections = splitSections(text);
 
-  const expRes = extractExperienceItems(sections.experience || '', text);
-  const eduItems = extractEducationItems(sections.education || '');
-  const projItems = extractProjectItems(sections.projects || '');
-  const certItems = extractCertificationItems(sections.certifications || '');
+  // Primary: section-based extraction
+  let expRes = extractExperienceItems(sections.experience || '', text);
+  let eduItems = extractEducationItems(sections.education || '');
+  let projItems = extractProjectItems(sections.projects || '');
+  let certItems = extractCertificationItems(sections.certifications || '');
+
+  // Fallback: when section headers missing, scan the entire text line-by-line.
+  // This guarantees we surface SOMETHING for resumes that don't follow header conventions.
+  const allLines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+
+  if (eduItems.length === 0) {
+    const eduLines = allLines.filter(l =>
+      DEGREE_PATTERNS.some(re => re.test(l)) || COLLEGE_RE.test(l)
+    );
+    eduItems = extractEducationItems(eduLines.join('\n'));
+  }
+
+  if (expRes.items.length === 0 && !expRes.isFresher) {
+    const expLines = allLines.filter(l => {
+      const lower = l.toLowerCase();
+      return DURATION_RE.test(l) || ROLE_KEYWORDS.some(k => lower.includes(k));
+    });
+    if (expLines.length > 0) {
+      expRes = extractExperienceItems(expLines.join('\n\n'), text);
+    }
+  }
+
+  if (projItems.length === 0) {
+    // Look for lines containing "project" keyword
+    const projLines = allLines.filter(l => /\bproject\b/i.test(l) && l.length < 200);
+    if (projLines.length > 0) projItems = extractProjectItems(projLines.join('\n'));
+  }
+
+  if (certItems.length === 0) {
+    const certLines = allLines.filter(l =>
+      /\b(certified|certification|certificate|coursera|udemy|aws certified|google cloud|microsoft certified|nptel)\b/i.test(l)
+      && l.length < 200
+    );
+    if (certLines.length > 0) certItems = extractCertificationItems(certLines.join('\n'));
+  }
 
   // Validate experience
   let experience_status: SectionStatus;

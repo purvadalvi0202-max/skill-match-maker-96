@@ -28,7 +28,10 @@ export function ScoreBarChart({ resumes }: { resumes: Resume[] }) {
 
   return (
     <div className="glass-card rounded-2xl p-6">
-      <h3 className="text-lg font-heading font-bold mb-4 text-foreground">Score Comparison</h3>
+      <h3 className="text-lg font-heading font-bold text-foreground">Score Comparison</h3>
+      <p className="text-xs text-muted-foreground mb-4">
+        ATS match score (%) per candidate — higher means better fit for the selected job description.
+      </p>
       <Bar data={data} options={{
         responsive: true,
         plugins: { legend: { display: false } },

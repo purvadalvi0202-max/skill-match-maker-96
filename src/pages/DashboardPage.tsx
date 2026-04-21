@@ -36,6 +36,7 @@ interface Resume {
   job_id: string;
   validation_status: string | null;
   preference_boost: number | null;
+  gender_signal?: string | null;
 }
 
 interface Job { id: string; job_name: string; description: string; }
@@ -51,6 +52,7 @@ export default function DashboardPage() {
   const [shortlistedOnly, setShortlistedOnly] = useState(false);
   const [showSuspicious, setShowSuspicious] = useState(false);
   const [previewId, setPreviewId] = useState<string | null>(null);
+  const [preferenceFilter, setPreferenceFilter] = useState<'none' | 'women' | 'men'>('none');
 
   useEffect(() => { fetchData(); }, []);
 
@@ -72,9 +74,11 @@ export default function DashboardPage() {
       if ((r.ats_score ?? 0) < minScore) return false;
       if (shortlistedOnly && !r.shortlisted) return false;
       if (showSuspicious && r.validation_status !== 'suspicious') return false;
+      if (preferenceFilter === 'women' && (r as any).gender_signal !== 'female') return false;
+      if (preferenceFilter === 'men' && (r as any).gender_signal !== 'male') return false;
       return true;
     });
-  }, [resumes, selectedJob, search, skillFilter, minScore, shortlistedOnly, showSuspicious]);
+  }, [resumes, selectedJob, search, skillFilter, minScore, shortlistedOnly, showSuspicious, preferenceFilter]);
 
   const avgAts = filtered.length ? Math.round(filtered.reduce((s, r) => s + (r.ats_score ?? 0), 0) / filtered.length) : 0;
   const shortlistedCount = filtered.filter(r => r.shortlisted).length;
@@ -85,45 +89,6 @@ export default function DashboardPage() {
     : null;
   const previewResume = resumes.find(r => r.id === previewId) || null;
   const previewJob = previewResume ? jobs.find(j => j.id === previewResume.job_id) : null;
-
-  const preferenceMap = useMemo(() => {
-    const m: Record<string, 'none' | 'women' | 'men'> = {};
-    resumes.forEach(r => {
-      // Derive from preference_boost + gender_signal stored at analyze time.
-      // Default 'none'; we store the explicit per-row preference in localStorage for instant edits.
-      const stored = (typeof window !== 'undefined' ? localStorage.getItem(`pref-${r.id}`) : null) as
-        | 'none' | 'women' | 'men' | null;
-      m[r.id] = stored ?? 'none';
-    });
-    return m;
-  }, [resumes]);
-
-  const handlePreferenceChange = async (id: string, value: 'none' | 'women' | 'men') => {
-    const target = resumes.find(r => r.id === id);
-    if (!target) return;
-    // Compute boost: +3 if matching gender signal else 0
-    const sig = (target as any).gender_signal as string | null;
-    let boost = 0;
-    if (value === 'women' && sig === 'female') boost = 3;
-    if (value === 'men' && sig === 'male') boost = 3;
-
-    // Adjust ats_score: remove old boost, add new
-    const oldBoost = target.preference_boost ?? 0;
-    const newAts = Math.max(0, Math.min(100, (target.ats_score ?? 0) - oldBoost + boost));
-
-    if (typeof window !== 'undefined') localStorage.setItem(`pref-${id}`, value);
-
-    setResumes(prev => prev.map(r => r.id === id
-      ? { ...r, preference_boost: boost, ats_score: newAts }
-      : r));
-
-    const { error } = await supabase
-      .from('resumes')
-      .update({ preference_boost: boost, ats_score: newAts })
-      .eq('id', id);
-    if (error) toast.error('Failed to update preference');
-    else toast.success(`Preference: ${value === 'none' ? 'No preference' : value === 'women' ? 'Prefer Women' : 'Prefer Men'}`);
-  };
 
   const toggleShortlist = async (id: string, value: boolean) => {
     setResumes(prev => prev.map(r => r.id === id ? { ...r, shortlisted: value } : r));
@@ -180,6 +145,19 @@ export default function DashboardPage() {
             <Button variant="outline" onClick={handleExport} className="rounded-xl gap-2">
               <Download className="h-4 w-4" /> Export CSV
             </Button>
+            <Select value={preferenceFilter} onValueChange={(v) => setPreferenceFilter(v as 'none' | 'women' | 'men')}>
+              <SelectTrigger className="w-[200px] rounded-xl">
+                <span className="inline-flex items-center gap-2">
+                  <Users className="h-4 w-4 text-primary" />
+                  <SelectValue placeholder="Preference" />
+                </span>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">All Candidates</SelectItem>
+                <SelectItem value="women">Show Women Only</SelectItem>
+                <SelectItem value="men">Show Men Only</SelectItem>
+              </SelectContent>
+            </Select>
             <Select value={selectedJob} onValueChange={setSelectedJob}>
               <SelectTrigger className="w-[220px] rounded-xl"><SelectValue placeholder="Filter by job" /></SelectTrigger>
               <SelectContent>
@@ -296,8 +274,6 @@ export default function DashboardPage() {
           onView={setPreviewId}
           onShortlistToggle={toggleShortlist}
           onDelete={deleteResume}
-          preferenceMap={preferenceMap}
-          onPreferenceChange={handlePreferenceChange}
         />
       </motion.div>
 

@@ -78,11 +78,6 @@ Protected Routes
 File Validation
 Secure Authentication
 
-📸 Screenshots
-
-
-
-
 👨‍💻 Author
 
 Purva Dalvi
